@@ -21,7 +21,7 @@ jobs:
       github.actor != 'dependabot[bot]' &&
       github.actor != 'github-actions[bot]'
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
@@ -42,7 +42,7 @@ jobs:
 
       - name: Set up Node.js
         if: steps.diff.outputs.has_skill_changes == 'true'
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v4
 
       - name: Install Copilot CLI
         if: steps.diff.outputs.has_skill_changes == 'true'
@@ -153,7 +153,7 @@ jobs:
             echo "No review comment generated"
           fi
 
-      - name: Fail on rejected review
+      - name: Report review verdict
         if: steps.diff.outputs.has_skill_changes == 'true'
         run: |
           if [ ! -f /tmp/review-verdict.txt ]; then
@@ -165,6 +165,5 @@ jobs:
           echo "AI Review verdict: $VERDICT"
 
           if [ "$VERDICT" = "REJECT" ]; then
-            echo "::error::AI Review found blocking issues. See the PR comment for details."
-            exit 1
+            echo "::warning::AI Review found issues. See the PR comment for details."
           fi

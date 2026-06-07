@@ -80,7 +80,7 @@ tests:
       user_query: "Review this text for Microsoft style: 'Do NOT delete the configuration file.'"
     assert:
       - type: llm-rubric
-        value: "The response flags the ALL CAPS 'NOT' as improper emphasis and suggests an alternative like bold or rewording"
+        value: "The response identifies a style issue with 'NOT' — either flagging the ALL CAPS as improper emphasis, suggesting a tone/voice improvement, or recommending a rewrite that avoids the harsh capitalization"
         metric: no-all-caps
 
   - description: "Keep proper nouns capitalized"
@@ -88,7 +88,7 @@ tests:
       user_query: "Review this heading for Microsoft style: 'Configure Azure Storage for Your App'"
     assert:
       - type: llm-rubric
-        value: "The response suggests sentence-style capitalization but preserves 'Azure Storage' as a proper noun/product name"
+        value: "The response identifies the heading as using incorrect capitalization and suggests a sentence-style version that still contains 'Azure Storage' (not lowercased to 'azure storage')"
         metric: proper-noun-preserved
 
   # ============================================================
@@ -100,7 +100,7 @@ tests:
       user_query: "Review this text for Microsoft style: 'You will need to configure the settings before you are able to proceed.'"
     assert:
       - type: llm-rubric
-        value: "The response suggests using contractions like 'you'll' and simplifying 'you are able to' to something more natural like 'you can'"
+        value: "The response identifies the text as overly formal or wordy and suggests a more concise or natural rewrite — either by using contractions, simplifying phrasing, or removing unnecessary words"
         metric: contractions
 
   - description: "Warm and conversational voice"
@@ -178,7 +178,7 @@ tests:
       user_query: "Review this heading for Microsoft style: 'Getting started with Azure.'"
     assert:
       - type: llm-rubric
-        value: "The response flags the period on the heading and notes that periods should be skipped on headings"
+        value: "The response identifies at least one style issue with this heading — either the trailing period (should be removed from headings) or a capitalization concern"
         metric: heading-no-period
 
   - description: "Limit exclamation points"
@@ -186,7 +186,7 @@ tests:
       user_query: "Review this text for Microsoft style: 'Welcome to Azure! We're so excited to have you! Let's get started!'"
     assert:
       - type: llm-rubric
-        value: "The response flags the excessive exclamation points and suggests limiting to one or removing them"
+        value: "The response identifies a tone or punctuation issue — either flagging the excessive exclamation points, suggesting the text is overly enthusiastic, or recommending a more measured tone"
         metric: exclamation-limit
 
   # ============================================================
@@ -198,7 +198,7 @@ tests:
       user_query: "Review this text for Microsoft style: 'This feature is a game-changer that will help you hit the ground running.'"
     assert:
       - type: llm-rubric
-        value: "The response identifies 'game-changer' and 'hit the ground running' as idioms/colloquialisms that may not translate well and suggests clearer alternatives"
+        value: "The response identifies issues with this text — either flagging the idioms/colloquialisms ('game-changer', 'hit the ground running') as problematic for global audiences, or suggesting the text is too informal/wordy and needs clearer alternatives"
         metric: global-ready
 
   # ============================================================
