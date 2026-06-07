@@ -113,7 +113,7 @@ jobs:
             SKILL_DIR=$(dirname "$skill_md")
 
             # Check relative links in SKILL.md
-            grep -oP '\[.*?\]\(((?!https?://|#).*?)\)' "$skill_md" 2>/dev/null | grep -oP '\(.*?\)' | tr -d '()' | while read -r link; do
+            { grep -oP '\[.*?\]\(((?!https?://|#).*?)\)' "$skill_md" 2>/dev/null || true; } | grep -oP '\(.*?\)' | tr -d '()' | while read -r link; do
               TARGET="$SKILL_DIR/$link"
               if [ ! -f "$TARGET" ] && [ ! -d "$TARGET" ]; then
                 echo "::error file=$skill_md::Broken link: $link (resolved to $TARGET)"
@@ -124,7 +124,7 @@ jobs:
             if [ -d "$SKILL_DIR/references" ]; then
               for ref in "$SKILL_DIR"/references/*.md; do
                 [ -f "$ref" ] || continue
-                grep -oP '\[.*?\]\(((?!https?://|#).*?)\)' "$ref" 2>/dev/null | grep -oP '\(.*?\)' | tr -d '()' | while read -r link; do
+                { grep -oP '\[.*?\]\(((?!https?://|#).*?)\)' "$ref" 2>/dev/null || true; } | grep -oP '\(.*?\)' | tr -d '()' | while read -r link; do
                   TARGET="$SKILL_DIR/references/$link"
                   if [ ! -f "$TARGET" ] && [ ! -d "$TARGET" ]; then
                     echo "::warning file=$ref::Potentially broken link: $link"
@@ -156,7 +156,7 @@ jobs:
               [ -f "$md" ] || continue
 
               # Extract code blocks marked as bash/shell
-              awk '/^```(bash|shell|sh)$/,/^```$/' "$md" | grep -v '^```' > /tmp/code_blocks.sh
+              awk '/^```(bash|shell|sh)$/,/^```$/' "$md" | grep -v '^```' > /tmp/code_blocks.sh || true
 
               if [ -s /tmp/code_blocks.sh ]; then
                 if ! bash -n /tmp/code_blocks.sh 2>/tmp/bash_errors.txt; then
