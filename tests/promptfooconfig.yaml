@@ -1,0 +1,248 @@
+# Promptfoo eval configuration for microsoft-writing-style skill quality testing
+#
+# Tests that an LLM given the microsoft-writing-style SKILL.md instructions
+# correctly applies Microsoft Writing Style Guide rules when reviewing or
+# rewriting content.
+#
+# Uses GitHub Models (included with Copilot subscription) - no separate API keys needed.
+# Auth: Set GITHUB_TOKEN env var (PAT with models:read scope, or use COPILOT_PAT).
+#
+# Run locally: GITHUB_TOKEN=your_pat promptfoo eval -c tests/promptfooconfig.yaml
+# View results: promptfoo view
+
+description: "microsoft-writing-style skill instruction quality"
+
+prompts:
+  - id: "writing-style-skill"
+    raw: |
+      You are an AI agent assistant. You have been given the following skill instructions for reviewing and rewriting content per the Microsoft Writing Style Guide:
+
+      ---BEGIN SKILL INSTRUCTIONS---
+      {{skill_content}}
+      ---END SKILL INSTRUCTIONS---
+
+      Using ONLY the knowledge from the skill instructions above, respond to the user's request. Apply the Microsoft Writing Style Guide rules precisely.
+
+      User request: {{user_query}}
+
+# Uses GitHub Models via Copilot subscription (OpenAI-compatible API)
+# Endpoint: https://models.github.ai/inference
+# Auth: GITHUB_TOKEN environment variable
+providers:
+  - id: github:openai/gpt-4o-mini
+    config:
+      temperature: 0
+
+defaultTest:
+  options:
+    # Use the same model as judge for llm-rubric assertions
+    provider: github:openai/gpt-4o-mini
+  vars:
+    skill_content: "file://../microsoft-writing-style/SKILL.md"
+
+tests:
+  # ============================================================
+  # OXFORD COMMA
+  # ============================================================
+
+  - description: "Apply Oxford comma in lists"
+    vars:
+      user_query: "Review this text for Microsoft style: 'The app supports Android, iOS and Windows.'"
+    assert:
+      - type: icontains
+        value: "Android, iOS, and Windows"
+      - type: llm-rubric
+        value: "The response identifies the missing Oxford comma and provides the corrected version with a serial comma before 'and'"
+        metric: oxford-comma
+
+  - description: "Recognize correct Oxford comma usage"
+    vars:
+      user_query: "Review this text for Microsoft style: 'You can export to PDF, CSV, and JSON formats.'"
+    assert:
+      - type: llm-rubric
+        value: "The response does NOT flag the Oxford comma as an issue because it is already correctly used"
+        metric: no-false-positive-comma
+
+  # ============================================================
+  # SENTENCE-STYLE CAPITALIZATION
+  # ============================================================
+
+  - description: "Flag title-style capitalization"
+    vars:
+      user_query: "Review this heading for Microsoft style: 'Create Your First Web Application'"
+    assert:
+      - type: llm-rubric
+        value: "The response identifies the heading as using title-style capitalization and suggests sentence-style instead, like 'Create your first web application'"
+        metric: sentence-cap-heading
+
+  - description: "Correct all-caps emphasis"
+    vars:
+      user_query: "Review this text for Microsoft style: 'Do NOT delete the configuration file.'"
+    assert:
+      - type: llm-rubric
+        value: "The response flags the ALL CAPS 'NOT' as improper emphasis and suggests an alternative like bold or rewording"
+        metric: no-all-caps
+
+  - description: "Keep proper nouns capitalized"
+    vars:
+      user_query: "Review this heading for Microsoft style: 'Configure Azure Storage for Your App'"
+    assert:
+      - type: llm-rubric
+        value: "The response suggests sentence-style capitalization but preserves 'Azure Storage' as a proper noun/product name"
+        metric: proper-noun-preserved
+
+  # ============================================================
+  # CONTRACTIONS AND TONE
+  # ============================================================
+
+  - description: "Suggest contractions for natural tone"
+    vars:
+      user_query: "Review this text for Microsoft style: 'You will need to configure the settings before you are able to proceed.'"
+    assert:
+      - type: llm-rubric
+        value: "The response suggests using contractions like 'you'll' and simplifying 'you are able to' to something more natural like 'you can'"
+        metric: contractions
+
+  - description: "Warm and conversational voice"
+    vars:
+      user_query: "Rewrite this in Microsoft style: 'The system has determined that your credentials are invalid. Re-authentication is required.'"
+    assert:
+      - type: llm-rubric
+        value: "The rewrite is warm, direct, and conversational — addresses the user as 'you', avoids robotic/passive language, and sounds natural when read aloud"
+        metric: voice-warmth
+
+  # ============================================================
+  # BIAS-FREE COMMUNICATION
+  # ============================================================
+
+  - description: "Flag gendered language"
+    vars:
+      user_query: "Review this text for Microsoft style: 'When the user opens his dashboard, he can see all notifications.'"
+    assert:
+      - type: llm-rubric
+        value: "The response identifies gendered pronouns (his/he) in a generic reference and suggests gender-neutral alternatives like 'their', 'they', or rewording with 'you'"
+        metric: gender-neutral
+
+  - description: "Flag biased terminology"
+    vars:
+      user_query: "Review this text for Microsoft style: 'Add the domain to the whitelist and set the master node configuration.'"
+    assert:
+      - type: icontains
+        value: "allow list"
+      - type: llm-rubric
+        value: "The response flags 'whitelist' and 'master' as biased terms and suggests 'allow list' and 'primary' (or similar alternatives)"
+        metric: bias-free-terms
+
+  # ============================================================
+  # BREVITY AND CLARITY
+  # ============================================================
+
+  - description: "Bigger ideas, fewer words"
+    vars:
+      user_query: "Rewrite this in Microsoft style: 'In order to be able to access your files, you will need to make sure that you have properly configured the correct network settings on your device.'"
+    assert:
+      - type: llm-rubric
+        value: "The rewrite is significantly shorter than the original, removes filler phrases like 'in order to', 'be able to', 'make sure that', and gets to the point directly"
+        metric: brevity
+
+  - description: "Revise weak writing patterns"
+    vars:
+      user_query: "Rewrite this in Microsoft style: 'There are several options that you can use to configure the output.'"
+    assert:
+      - type: llm-rubric
+        value: "The rewrite eliminates 'There are' and 'you can' weak patterns and starts with a stronger verb or direct statement"
+        metric: strong-writing
+
+  - description: "Get to the point fast"
+    vars:
+      user_query: "Rewrite this in Microsoft style: 'Before we begin discussing the various configuration options that are available for the deployment process, it is important to note that all settings can be changed later.'"
+    assert:
+      - type: llm-rubric
+        value: "The rewrite leads with the key information (settings can be changed later) rather than burying it at the end, and is significantly shorter"
+        metric: front-load-info
+
+  # ============================================================
+  # PUNCTUATION AND FORMATTING
+  # ============================================================
+
+  - description: "Em dash spacing"
+    vars:
+      user_query: "Review this text for Microsoft style: 'Use pipelines — logical groups of activities — to consolidate work.'"
+    assert:
+      - type: llm-rubric
+        value: "The response flags the spaced em dashes and suggests removing spaces around them (word—word format)"
+        metric: em-dash-spacing
+
+  - description: "Skip periods on headings"
+    vars:
+      user_query: "Review this heading for Microsoft style: 'Getting started with Azure.'"
+    assert:
+      - type: llm-rubric
+        value: "The response flags the period on the heading and notes that periods should be skipped on headings"
+        metric: heading-no-period
+
+  - description: "Limit exclamation points"
+    vars:
+      user_query: "Review this text for Microsoft style: 'Welcome to Azure! We're so excited to have you! Let's get started!'"
+    assert:
+      - type: llm-rubric
+        value: "The response flags the excessive exclamation points and suggests limiting to one or removing them"
+        metric: exclamation-limit
+
+  # ============================================================
+  # GLOBAL READINESS
+  # ============================================================
+
+  - description: "Flag idioms and colloquialisms"
+    vars:
+      user_query: "Review this text for Microsoft style: 'This feature is a game-changer that will help you hit the ground running.'"
+    assert:
+      - type: llm-rubric
+        value: "The response identifies 'game-changer' and 'hit the ground running' as idioms/colloquialisms that may not translate well and suggests clearer alternatives"
+        metric: global-ready
+
+  # ============================================================
+  # ACTIVE VOICE AND GRAMMAR
+  # ============================================================
+
+  - description: "Prefer active voice"
+    vars:
+      user_query: "Review this text for Microsoft style: 'The file was uploaded by the system and the notification was sent to the administrator.'"
+    assert:
+      - type: llm-rubric
+        value: "The response identifies passive voice and suggests active alternatives like 'The system uploaded the file and sent a notification to the administrator'"
+        metric: active-voice
+
+  - description: "Use present tense"
+    vars:
+      user_query: "Review this text for Microsoft style: 'After you will click Save, the settings will be applied and the page will be refreshed.'"
+    assert:
+      - type: llm-rubric
+        value: "The response corrects the future tense to present tense (e.g., 'After you select Save, the settings are applied')"
+        metric: present-tense
+
+  # ============================================================
+  # REVIEW OUTPUT FORMAT
+  # ============================================================
+
+  - description: "Structured review output"
+    vars:
+      user_query: "Review this text for Microsoft style: 'If you're ready to purchase Office 365 for your organization, contact your Microsoft account representative. You can also Click Here to learn more about available plans and pricing.'"
+    assert:
+      - type: icontains
+        value: "Issues found"
+      - type: llm-rubric
+        value: "The response follows a structured review format with identified issues, rule references, and suggested rewrites — not just a rewritten version"
+        metric: structured-output
+
+  # ============================================================
+  # DEVELOPER CONTENT
+  # ============================================================
+
+  - description: "Input-neutral verbs"
+    vars:
+      user_query: "Review this instruction for Microsoft style: 'Click the Settings button, then click Save.'"
+    assert:
+      - type: llm-rubric
+        value: "The response flags 'Click' as device-specific and suggests input-neutral alternatives like 'Select' that support all abilities and input methods"
+        metric: input-neutral
