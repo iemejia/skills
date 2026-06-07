@@ -23,7 +23,7 @@ jobs:
     name: Structural Validation
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v4
 
       - name: Discover and validate all skills
         run: |
@@ -139,7 +139,7 @@ jobs:
     name: Content Quality
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v4
 
       - name: Extract and validate shell code blocks
         run: |
