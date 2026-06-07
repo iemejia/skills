@@ -1,0 +1,170 @@
+name: "Tier 4: AI Review"
+
+on:
+  pull_request:
+    paths:
+      - "*/SKILL.md"
+      - "*/references/**"
+      - "*/scripts/**"
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  ai-review:
+    name: AI Review (Copilot)
+    runs-on: ubuntu-latest
+    # Only run on non-fork PRs and non-bot PRs
+    if: |
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.actor != 'dependabot[bot]' &&
+      github.actor != 'github-actions[bot]'
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Get PR diff
+        id: diff
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh pr diff ${{ github.event.pull_request.number }} > /tmp/pr-diff.txt
+          # Only proceed if skill files changed
+          if grep -qE '^diff.*/SKILL\.md|^diff.*/references/|^diff.*/scripts/' /tmp/pr-diff.txt; then
+            echo "has_skill_changes=true" >> "$GITHUB_OUTPUT"
+            # Truncate diff for prompt context (keep under token limits)
+            head -c 50000 /tmp/pr-diff.txt > /tmp/pr-diff-truncated.txt
+          else
+            echo "has_skill_changes=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Set up Node.js
+        if: steps.diff.outputs.has_skill_changes == 'true'
+        uses: actions/setup-node@v6
+
+      - name: Install Copilot CLI
+        if: steps.diff.outputs.has_skill_changes == 'true'
+        run: npm install -g @github/copilot
+
+      - name: Build review prompt
+        if: steps.diff.outputs.has_skill_changes == 'true'
+        run: |
+          cat > /tmp/review-prompt.md << 'PROMPT_END'
+          # Agent Skill PR Review
+
+          You are reviewing a PR to an Agent Skills repository (agentskills.io spec). This repo
+          contains portable skills that teach AI agents specialized knowledge and workflows.
+
+          Review the diff below and check for:
+
+          1. **Spec compliance** (agentskills.io):
+             - YAML frontmatter valid with required fields (name, description)
+             - name field matches directory name (lowercase + hyphens only)
+             - description under 1024 chars
+             - SKILL.md under 500 lines (detailed content belongs in references/)
+
+          2. **Instruction quality**: Will these instructions help an agent succeed?
+             - Are instructions clear, actionable, and procedural?
+             - Are examples concrete and correct?
+             - Is the progressive disclosure structure maintained (SKILL.md concise, details in references/)?
+             - Are edge cases and error handling covered where relevant?
+
+          3. **Content accuracy**: Is the documented knowledge correct?
+             - Are external links valid?
+             - Are cited rules, guidelines, or standards accurately represented?
+             - Are examples consistent with the described behavior?
+
+          4. **Structure and organization**:
+             - Logical heading hierarchy (no skipped levels)
+             - No duplicate content between SKILL.md and references/
+             - Internal relative links resolve correctly
+
+          Write a concise review. Only flag actual issues, not style preferences.
+          If everything looks good, say so briefly in 1-2 sentences.
+
+          Output your review as a markdown comment suitable for a GitHub PR.
+          Write it to /tmp/review-comment.md
+
+          IMPORTANT: You must also write a verdict file to /tmp/review-verdict.txt containing
+          exactly one of these words on the first line:
+          - "APPROVE" if there are no blocking issues (minor suggestions are fine)
+          - "REJECT" if there are issues that must be fixed before merging (spec violations,
+            inaccurate content, broken structure, or instructions that would cause agents to fail)
+
+          ## PR Diff
+
+          PROMPT_END
+
+          cat /tmp/pr-diff-truncated.txt >> /tmp/review-prompt.md
+
+      - name: Run AI review with Copilot
+        if: steps.diff.outputs.has_skill_changes == 'true'
+        env:
+          GITHUB_TOKEN: ${{ secrets.COPILOT_PAT }}
+        run: |
+          copilot \
+            --allow-tool='shell(cat:*)' \
+            --allow-tool='shell(wc:*)' \
+            --allow-tool='shell(head:*)' \
+            --allow-tool='shell(grep:*)' \
+            --allow-tool=read \
+            --allow-tool=write \
+            --no-ask-user < /tmp/review-prompt.md
+
+      - name: Post review comment
+        if: steps.diff.outputs.has_skill_changes == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if [ -f /tmp/review-comment.md ]; then
+            # Read verdict and append status badge to comment
+            VERDICT="UNKNOWN"
+            if [ -f /tmp/review-verdict.txt ]; then
+              VERDICT=$(head -1 /tmp/review-verdict.txt | tr -d '[:space:]')
+            fi
+
+            if [ "$VERDICT" = "APPROVE" ]; then
+              BADGE=":white_check_mark: **Verdict: APPROVE**"
+            else
+              BADGE=":x: **Verdict: REJECT** — issues must be fixed before merging"
+            fi
+
+            # Build comment body
+            REVIEW_BODY="## :robot: AI Skill Review"$'\n\n'
+            REVIEW_BODY+="$BADGE"$'\n\n'
+            REVIEW_BODY+=$(cat /tmp/review-comment.md)
+
+            # Post or update PR comment
+            EXISTING_COMMENT=$(gh api \
+              repos/${{ github.repository }}/issues/${{ github.event.pull_request.number }}/comments \
+              --jq '.[] | select(.body | contains("AI Skill Review")) | .id' | head -1)
+
+            if [ -n "$EXISTING_COMMENT" ]; then
+              gh api \
+                repos/${{ github.repository }}/issues/comments/$EXISTING_COMMENT \
+                -X PATCH \
+                -f body="$REVIEW_BODY"
+            else
+              gh pr comment ${{ github.event.pull_request.number }} --body "$REVIEW_BODY"
+            fi
+          else
+            echo "No review comment generated"
+          fi
+
+      - name: Fail on rejected review
+        if: steps.diff.outputs.has_skill_changes == 'true'
+        run: |
+          if [ ! -f /tmp/review-verdict.txt ]; then
+            echo "::warning::No verdict file produced by AI review"
+            exit 0
+          fi
+
+          VERDICT=$(head -1 /tmp/review-verdict.txt | tr -d '[:space:]')
+          echo "AI Review verdict: $VERDICT"
+
+          if [ "$VERDICT" = "REJECT" ]; then
+            echo "::error::AI Review found blocking issues. See the PR comment for details."
+            exit 1
+          fi
