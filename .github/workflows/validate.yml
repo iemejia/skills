@@ -74,11 +74,18 @@ jobs:
             fi
 
             # Check 'description' field exists and is within limits
-            DESC=$(echo "$FRONTMATTER" | grep '^description:' | sed 's/description: *//')
-            if [ -z "$DESC" ]; then
+            # Handle both inline and multi-line YAML (> or |) descriptions
+            DESC_LINE=$(echo "$FRONTMATTER" | grep '^description:' | sed 's/description: *//')
+            if [ -z "$DESC_LINE" ]; then
               echo "::error file=$skill_md::Missing 'description' field in frontmatter"
               ERRORS=1
             else
+              # If description uses folded (>) or literal (|) scalar, extract continuation lines
+              if [ "$DESC_LINE" = ">" ] || [ "$DESC_LINE" = "|" ] || [ "$DESC_LINE" = ">-" ] || [ "$DESC_LINE" = "|-" ]; then
+                DESC=$(sed -n '/^---$/,/^---$/p' "$skill_md" | sed '1d;$d' | sed -n '/^description:/,/^[a-z]/{/^description:/d;/^[a-z]/d;p}' | tr '\n' ' ' | sed 's/^  *//;s/  */ /g;s/ *$//')
+              else
+                DESC="$DESC_LINE"
+              fi
               DESC_LEN=${#DESC}
               if [ "$DESC_LEN" -gt 1024 ]; then
                 echo "::error file=$skill_md::description exceeds 1024 chars ($DESC_LEN chars)"
@@ -109,30 +116,38 @@ jobs:
 
       - name: Validate internal links
         run: |
+          ERRORS=0
           for skill_md in */SKILL.md; do
             SKILL_DIR=$(dirname "$skill_md")
 
             # Check relative links in SKILL.md
-            { grep -oP '\[.*?\]\(((?!https?://|#).*?)\)' "$skill_md" 2>/dev/null || true; } | grep -oP '\(.*?\)' | tr -d '()' | while read -r link; do
+            { grep -oP '\[.*?\]\(((?!https?://|#).*?)\)' "$skill_md" 2>/dev/null || true; } | grep -oP '\(.*?\)' | tr -d '()' > /tmp/links.txt || true
+            while read -r link; do
+              [ -z "$link" ] && continue
               TARGET="$SKILL_DIR/$link"
               if [ ! -f "$TARGET" ] && [ ! -d "$TARGET" ]; then
                 echo "::error file=$skill_md::Broken link: $link (resolved to $TARGET)"
+                ERRORS=1
               fi
-            done
+            done < /tmp/links.txt
 
             # Check relative links in reference files
             if [ -d "$SKILL_DIR/references" ]; then
               for ref in "$SKILL_DIR"/references/*.md; do
                 [ -f "$ref" ] || continue
-                { grep -oP '\[.*?\]\(((?!https?://|#).*?)\)' "$ref" 2>/dev/null || true; } | grep -oP '\(.*?\)' | tr -d '()' | while read -r link; do
+                { grep -oP '\[.*?\]\(((?!https?://|#).*?)\)' "$ref" 2>/dev/null || true; } | grep -oP '\(.*?\)' | tr -d '()' > /tmp/links.txt || true
+                while read -r link; do
+                  [ -z "$link" ] && continue
                   TARGET="$SKILL_DIR/references/$link"
                   if [ ! -f "$TARGET" ] && [ ! -d "$TARGET" ]; then
-                    echo "::warning file=$ref::Potentially broken link: $link"
+                    echo "::error file=$ref::Broken link: $link (resolved to $TARGET)"
+                    ERRORS=1
                   fi
-                done
+                done < /tmp/links.txt
               done
             fi
           done
+          if [ "$ERRORS" -eq 1 ]; then exit 1; fi
           echo "✓ Internal link check complete"
 
   content-quality:

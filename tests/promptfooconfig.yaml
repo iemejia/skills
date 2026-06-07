@@ -88,7 +88,7 @@ tests:
       user_query: "Review this heading for Microsoft style: 'Configure Azure Storage for Your App'"
     assert:
       - type: llm-rubric
-        value: "The response identifies the heading as using incorrect capitalization and suggests a sentence-style version that still contains 'Azure Storage' (not lowercased to 'azure storage')"
+        value: "The response identifies the heading as having a capitalization issue and suggests a corrected version. The corrected heading must still contain 'Azure Storage' with capital A and capital S (since it is a product name). It is acceptable to lowercase 'Your' and 'App'."
         metric: proper-noun-preserved
 
   # ============================================================
