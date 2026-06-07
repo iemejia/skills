@@ -1,5 +1,5 @@
 ---
-name: microsoft-style-guide
+name: microsoft-writing-style
 description: >
   Review and rewrite content for compliance with the Microsoft Writing Style Guide.
   Enforces voice principles (warm, crisp, ready to help), bias-free language,

@@ -37,7 +37,7 @@ npx skills add iemejia/skills --global --all
 npx skills add iemejia/skills --all
 
 # Install a specific skill only
-npx skills add iemejia/skills --skill microsoft-style-guide --all
+npx skills add iemejia/skills --skill microsoft-writing-style --all
 
 # List what's available before installing
 npx skills add iemejia/skills --list
