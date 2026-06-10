@@ -15,6 +15,12 @@ skill-name/
 └── ...
 ```
 
+## Available Skills
+
+| Skill | Description |
+|-------|-------------|
+| [microsoft-writing-style](microsoft-writing-style/) | Review and rewrite content for compliance with the Microsoft Writing Style Guide. Enforces voice principles (warm, crisp, ready to help), bias-free language, sentence-style capitalization, Oxford commas, scannable structure, and global-ready writing. |
+
 ## Usage
 
 Clone this repository and point your agent to the skills directory. Compatible agents will discover skills automatically via progressive disclosure:
